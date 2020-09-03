@@ -17,7 +17,7 @@ services:
                 max_attempts: 3
             placement:
                 constraints:
-                    - node.hostname == host2
+                    - node.hostname == sanket-PC
         image: hyperledger/fabric-peer
         working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
         command: peer node start
@@ -61,4 +61,6 @@ services:
             aliases:
                 - peer1.org2.example.com
 
+        
 
+   

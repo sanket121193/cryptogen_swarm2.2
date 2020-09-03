@@ -1,203 +1,286 @@
-/*
-Copyright IBM Corp. 2016 All Rights Reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-		 http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package main
 
-
 import (
-	"fmt"
-	"strconv"
+       "encoding/json"
+        "fmt"
+        "bytes"
+        "strconv"
+        //"strings"
+        "time"
 
-	"github.com/hyperledger/fabric/core/chaincode/shim"
-	pb "github.com/hyperledger/fabric/protos/peer"
+        "github.com/hyperledger/fabric/core/chaincode/shim"
+        pb "github.com/hyperledger/fabric/protos/peer"
 )
 
-var logger = shim.NewLogger("example_cc0")
+//      "strings"
 
-// SimpleChaincode example simple Chaincode implementation
-type SimpleChaincode struct {
+type Certificate struct {
+        CertificateId           string  `json:"CertificateId"`
+        FileHash                string  `json:"FileHash"`
+        FilePath                string  `json:"FilePath"`
+        DataHash                string  `json:"DataHash"`
+        CertType                string  `json:"CertType"`
+        Status                  string  `json:"Status"`
+        Certifier1              string  `json:"Certifier1"`
+        Certifier2              string  `json:"Certifier2"`
+        Certifier3              string  `json:"Certifier3"`
+        StudentAck              string  `json:"StudentAck"`
+        AllValues               string  `json:"AllValues"`
+        CurrentOwner            string  `json:"CurrentOwner"`
+        TransferTo              string  `json:"TransferTo"`
 }
 
-func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response  {
-	logger.Info("########### example_cc0 Init ###########")
-
-	_, args := stub.GetFunctionAndParameters()
-	var A, B string    // Entities
-	var Aval, Bval int // Asset holdings
-	var err error
-
-	// Initialize the chaincode
-	A = args[0]
-	Aval, err = strconv.Atoi(args[1])
-	if err != nil {
-		return shim.Error("Expecting integer value for asset holding")
-	}
-	B = args[2]
-	Bval, err = strconv.Atoi(args[3])
-	if err != nil {
-		return shim.Error("Expecting integer value for asset holding")
-	}
-	logger.Info("Aval = %d, Bval = %d\n", Aval, Bval)
-
-	// Write the state to the ledger
-	err = stub.PutState(A, []byte(strconv.Itoa(Aval)))
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	err = stub.PutState(B, []byte(strconv.Itoa(Bval)))
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	return shim.Success(nil)
-
-
+type CertificateChaincode struct {
+}
+/*
+ * The Init method is called when the Smart Contract "certificate" is instantiated by the blockchain network
+ */
+func (t *CertificateChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
+        return shim.Success(nil)
 }
 
-// Transaction makes payment of X units from A to B
-func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
-	logger.Info("########### example_cc0 Invoke ###########")
+/*
+ * The Invoke method is called as a result of an application request to run the Smart Contract "certificate"
+ */
+func (t *CertificateChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
+        fmt.Println("chaincode_custom Invoke")
+        function, args := stub.GetFunctionAndParameters()
 
-	function, args := stub.GetFunctionAndParameters()
-	
-	if function == "delete" {
-		// Deletes an entity from its state
-		return t.delete(stub, args)
-	}
+        if function == "query" {
+                return t.query(stub, args)
+        } else if function == "addActive" {
+                return t.addActive(stub, args)
+        } else if function == "addPassedOut" {
+                        return t.addPassedOut(stub, args)
+        } else if function == "studentAcknowledgement" {
+                return t.studentAcknowledgement(stub, args)
+        } else if function == "updateCertificate" {
+                return t.updateCertificate(stub, args)
+        } else if function == "updateOwner" {
+                return t.updateOwner(stub, args)
+        } else if function == "getHistory" {
+                return t.getHistory(stub, args)
+        }
 
-	if function == "query" {
-		// queries an entity state
-		return t.query(stub, args)
-	}
-	if function == "move" {
-		// Deletes an entity from its state
-		return t.move(stub, args)
-	}
-
-	logger.Errorf("Unknown action, check the first argument, must be one of 'delete', 'query', or 'move'. But got: %v", args[0])
-	return shim.Error(fmt.Sprintf("Unknown action, check the first argument, must be one of 'delete', 'query', or 'move'. But got: %v", args[0]))
+        return shim.Error("Invalid invoke function name")
 }
 
-func (t *SimpleChaincode) move(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	// must be an invoke
-	var A, B string    // Entities
-	var Aval, Bval int // Asset holdings
-	var X int          // Transaction value
-	var err error
 
-	if len(args) != 3 {
-		return shim.Error("Incorrect number of arguments. Expecting 4, function followed by 2 names and 1 value")
-	}
+func (t *CertificateChaincode) query(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+        var A string // Entities
+        var err error
 
-	A = args[0]
-	B = args[1]
+        if len(args) != 1 {
+                return shim.Error("Incorrect number of arguments. Expecting certificate Id to query")
+        }
 
-	// Get the state from the ledger
-	// TODO: will be nice to have a GetAllState call to ledger
-	Avalbytes, err := stub.GetState(A)
-	if err != nil {
-		return shim.Error("Failed to get state")
-	}
-	if Avalbytes == nil {
-		return shim.Error("Entity not found")
-	}
-	Aval, _ = strconv.Atoi(string(Avalbytes))
+        A = args[0]
 
-	Bvalbytes, err := stub.GetState(B)
-	if err != nil {
-		return shim.Error("Failed to get state")
-	}
-	if Bvalbytes == nil {
-		return shim.Error("Entity not found")
-	}
-	Bval, _ = strconv.Atoi(string(Bvalbytes))
+        // Get the state from the ledger
+        Avalbytes, err := stub.GetState(A)
+        if err != nil {
+                jsonResp := "{\"Error\":\"Failed to get state for " + A + "\"}"
+                return shim.Error(jsonResp)
+        }
 
-	// Perform the execution
-	X, err = strconv.Atoi(args[2])
-	if err != nil {
-		return shim.Error("Invalid transaction amount, expecting a integer value")
-	}
-	Aval = Aval - X
-	Bval = Bval + X
-	logger.Infof("Aval = %d, Bval = %d\n", Aval, Bval)
+        if Avalbytes == nil {
+                jsonResp := "{\"Error\":\"Nil amount\"}"
+                return shim.Error(jsonResp)
+        }
 
-	// Write the state back to the ledger
-	err = stub.PutState(A, []byte(strconv.Itoa(Aval)))
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-	err = stub.PutState(B, []byte(strconv.Itoa(Bval)))
-	if err != nil {
-		return shim.Error(err.Error())
-	}
-
-        return shim.Success(nil);
+        return shim.Success(Avalbytes)
 }
 
-// Deletes an entity from state
-func (t *SimpleChaincode) delete(stub shim.ChaincodeStubInterface, args []string) pb.Response {
-	if len(args) != 1 {
-		return shim.Error("Incorrect number of arguments. Expecting 1")
-	}
+func (t *CertificateChaincode) addActive(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+        fmt.Println("Add Certificate.. ")
+        var certificate Certificate
+        var err error
 
-	A := args[0]
+        isExistAsBytes, _ := stub.GetState(args[0])
+        if isExistAsBytes != nil {
+                return shim.Error(err.Error())
+        }
 
-	// Delete the key from the state in ledger
-	err := stub.DelState(A)
-	if err != nil {
-		return shim.Error("Failed to delete state")
-	}
+        certificate.CertificateId = args[0]
+        certificate.FileHash      = args[1]
+        certificate.FilePath      = args[2]
+        certificate.Certifier1    = args[3]
+        certificate.Certifier2    = args[4]
+        certificate.Certifier3    = args[5]
+        certificate.AllValues     = args[6]
+        certificate.CurrentOwner  = args[7]
 
-	return shim.Success(nil)
+        certificateAsBytes, _ := json.Marshal(certificate)
+        err = stub.PutState(certificate.CertificateId, certificateAsBytes)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+
+        return shim.Success(nil)
 }
 
-// Query callback representing the query of a chaincode
-func (t *SimpleChaincode) query(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+func (t *CertificateChaincode) studentAcknowledgement(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+        fmt.Println("Student Acknowledgement...")
+        var certificate Certificate
+        var err error
 
-	var A string // Entities
-	var err error
+        certificate.CertificateId = args[0]
+        certificate.StudentAck = args[1]
 
-	if len(args) != 1 {
-		return shim.Error("Incorrect number of arguments. Expecting name of the person to query")
-	}
+        certificateAsBytes, _ := json.Marshal(certificate)
+        err = stub.PutState(certificate.CertificateId, certificateAsBytes)
 
-	A = args[0]
+        if err != nil {
+                return shim.Error(err.Error())
+        }
 
-	// Get the state from the ledger
-	Avalbytes, err := stub.GetState(A)
-	if err != nil {
-		jsonResp := "{\"Error\":\"Failed to get state for " + A + "\"}"
-		return shim.Error(jsonResp)
-	}
+        return shim.Success(nil)
+}
 
-	if Avalbytes == nil {
-		jsonResp := "{\"Error\":\"Nil amount for " + A + "\"}"
-		return shim.Error(jsonResp)
-	}
+func (t *CertificateChaincode) addPassedOut(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+        fmt.Println("Add Certificate.. ")
+        var certificate Certificate
+        var err error
 
-	jsonResp := "{\"Name\":\"" + A + "\",\"Amount\":\"" + string(Avalbytes) + "\"}"
-	logger.Infof("Query Response:%s\n", jsonResp)
-	return shim.Success(Avalbytes)
+        isExistAsBytes, _ := stub.GetState(args[0])
+        if isExistAsBytes != nil {
+                return shim.Error(err.Error())
+        }
+
+        certificate.CertificateId = args[0]
+        certificate.FileHash = args[1]
+        certificate.FilePath = args[2]
+        certificate.DataHash = args[3]
+        certificate.CertType = args[4]
+        certificate.Status   = args[5]
+
+        certificateAsBytes, _ := json.Marshal(certificate)
+        err = stub.PutState(certificate.CertificateId, certificateAsBytes)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+
+        return shim.Success(nil)
+}
+
+func (t *CertificateChaincode) updateCertificate(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+        if len (args) < 2 {
+                return shim.Error("Incorrect number of arguments. Expecting 2")
+        }
+        fmt.Println("Update Certificate")
+        var err error
+        certificateId := args[0]
+        transferTo := args[1]
+
+        certificateAsBytes, err := stub.GetState(certificateId)
+        if err != nil {
+                return shim.Error("Failed to get Certificate:" + err.Error())
+        } else if certificateAsBytes == nil {
+                return shim.Error("Certificate does not exist")
+        }
+        certificateToTransfer := Certificate{}
+        err = json.Unmarshal(certificateAsBytes, &certificateToTransfer)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+        certificateToTransfer.TransferTo = transferTo
+        certificateJSONAsBytes, _ := json.Marshal(certificateToTransfer)
+        err = stub.PutState(certificateId, certificateJSONAsBytes)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+        return shim.Success(nil)
+}
+
+func (t *CertificateChaincode) updateOwner(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+        if len (args) < 3 {
+                return shim.Error("Incorrect number of arguments. Expecting 2.")
+        }
+        fmt.Println("Update TransferTo")
+        var err error
+        certificateId := args[0]
+        currentOwner := args[1]
+        transferTo := args[2]
+
+        certificateAsBytes, err := stub.GetState(certificateId)
+        if err != nil {
+                return shim.Error("Failed to get Certificate:" + err.Error())
+        } else if certificateAsBytes == nil {
+                return shim.Error("Certificate does not exist")
+        }
+        certificateToTransfer := Certificate{}
+        err = json.Unmarshal(certificateAsBytes, &certificateToTransfer)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+        certificateToTransfer.CurrentOwner = currentOwner
+        certificateToTransfer.TransferTo = transferTo
+        certificateJSONAsBytes, _ := json.Marshal(certificateToTransfer)
+        err = stub.PutState(certificateId, certificateJSONAsBytes)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+        return shim.Success(nil)
+}
+
+func (t *CertificateChaincode) getHistory(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+        if len(args) < 1 {
+                return shim.Error("Incorrect number of arguments. Expectung 1")
+        }
+
+        certificateId := args[0]
+        fmt.Println("Get History")
+
+        resultIterator, err := stub.GetHistoryForKey(certificateId)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+
+        defer resultIterator.Close()
+
+        var buffer bytes.Buffer
+        buffer.WriteString("[")
+
+        bArrayMemberAlreadyWritten := false
+        for resultIterator.HasNext() {
+                response, err := resultIterator.Next()
+                if err != nil {
+                        return shim.Error(err.Error())
+                }
+                if bArrayMemberAlreadyWritten == true {
+                        buffer.WriteString(",")
+                }
+                buffer.WriteString("{\"TxId\":")
+                buffer.WriteString("\"")
+                buffer.WriteString(response.TxId)
+                buffer.WriteString("\"")
+                buffer.WriteString(", \"Value\":")
+                if response.IsDelete {
+                        buffer.WriteString("null")
+                } else {
+                        buffer.WriteString(string(response.Value))
+                }
+                buffer.WriteString(", \"TimeStamp\":")
+                buffer.WriteString("\"")
+                buffer.WriteString(time.Unix(response.Timestamp.Seconds, int64(response.Timestamp.Nanos)).String())
+                buffer.WriteString("\"")
+                buffer.WriteString(", \"IsDelete\":")
+                buffer.WriteString("\"")
+                buffer.WriteString(strconv.FormatBool(response.IsDelete))
+                buffer.WriteString("\"")
+
+                buffer.WriteString("}")
+                bArrayMemberAlreadyWritten = true
+                }
+        buffer.WriteString("]")
+        fmt.Println("getHistory resturning")
+
+        return shim.Success(buffer.Bytes())
 }
 
 func main() {
-	err := shim.Start(new(SimpleChaincode))
-	if err != nil {
-		logger.Errorf("Error starting Simple chaincode: %s", err)
-	}
+        err := shim.Start(new(CertificateChaincode))
+        if err != nil {
+                fmt.Printf("Error starting Certificate chaincode: %s", err)
+        }
 }

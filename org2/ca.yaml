@@ -21,17 +21,17 @@ services:
                 max_attempts: 3
             placement:
                 constraints:
-                    - node.hostname == host2
+                    - node.hostname == sanket-PC
         image: hyperledger/fabric-ca
         hostname: ca.org2.example.com
         environment:
             - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
-            - FABRIC_CA_SERVER_CA_NAME=ca_org2
+            - FABRIC_CA_SERVER_CA_NAME=ca-org2
             - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org2.example.com-cert.pem
-            - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/a7d47efa46a6ba07730c850fed2c1375df27360d7227f48cdc2f80e505678005_sk
+            - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
             - FABRIC_CA_SERVER_TLS_ENABLED=true
             - FABRIC_CA_SERVER_TLS_CERTFILE=/etc/hyperledger/fabric-ca-server-config/ca.org2.example.com-cert.pem
-            - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/a7d47efa46a6ba07730c850fed2c1375df27360d7227f48cdc2f80e505678005_sk
+            - FABRIC_CA_SERVER_TLS_KEYFILE=/etc/hyperledger/fabric-ca-server-config/priv_sk
         ports:
             - "8054:7054"   
         command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
